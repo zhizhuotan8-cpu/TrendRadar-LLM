@@ -14,6 +14,7 @@ event_key 标识具体发布事件，必须包含产品及发布版本或日期�
 change_key 标识实质变化；重复报道沿用已有 key，新的工程变化才创建新 key。
 候选事件仅供参考，不能为了合并而忽略版本或发布对象差异。
 区分原始事实、作者经验及你的分析。confidence 表示事件关联置信度。
+另提供 importance 整数 1–5，按工程影响强度排序；5 为需立即评估的重大改变，1 为低影响信息。
 """
 
 
@@ -47,6 +48,7 @@ class AnalysisService:
         ], timeout=timeout, max_tokens=max_tokens, num_retries=0)
         data = json.loads(response)
         self._validate(data, content)
+        data.setdefault('importance', 3)
         data.update(source_id=source['id'], read_id=read_id,
                     limited_information=len(content) < len(read['content']))
         # Low-confidence decisions are retained for review, never auto-merged.
@@ -71,6 +73,8 @@ class AnalysisService:
     def _validate(data, content):
         if not isinstance(data, dict) or type(data.get('relevant')) is not bool:
             raise ValueError('Invalid relevance decision')
+        if type(data.get('importance', 3)) is not int or not 1 <= data.get('importance', 3) <= 5:
+            raise ValueError('Invalid importance')
         for key in ('reason', 'event_key', 'change_key', 'analysis'):
             if not isinstance(data.get(key), str):
                 raise ValueError(f'Invalid {key}')

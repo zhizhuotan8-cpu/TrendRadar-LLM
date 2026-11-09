@@ -39,7 +39,7 @@ def model_client():
     return client
 
 
-def feishu_sender(webhook):
+def feishu_sender(webhook, budget=None):
     from trendradar.notification.senders import send_to_feishu
     def send(report):
         items = json.loads(report['payload'])
@@ -61,7 +61,8 @@ def feishu_sender(webhook):
             batches = ['暂无有充分证据的新进展。']
         with redirect_stdout(io.StringIO()):
             return send_to_feishu(webhook, {}, report['day'] + ' 大模型每日简报',
-                                  split_content_func=lambda *args, **kwargs: batches)
+                                  split_content_func=lambda *args, **kwargs: batches,
+                                  timeout_provider=(lambda: budget.reserve(requests=1)) if budget else None)
     return send
 
 
@@ -121,7 +122,7 @@ class DailyRunner:
             if budget.deadline <= budget.clock():
                 break
         briefings = BriefingService(self.store)
-        report = briefings.prepare(now)
+        report = briefings.prepare(now, issues=issues)
         if report:
             directory = Path(self.config['reports'])
             directory.mkdir(parents=True, exist_ok=True)
@@ -136,7 +137,7 @@ class DailyRunner:
                 with self.store._connect() as db:
                     pending = db.execute("SELECT id FROM briefings WHERE delivery!='sent' ORDER BY id").fetchall()
                 for row in pending:
-                    delivery = briefings.deliver(row[0], feishu_sender(webhook),
+                    delivery = briefings.deliver(row[0], feishu_sender(webhook, budget),
                                                  retry_uncertain=retry_uncertain)
         result = dict(briefing_id=report['id'] if report else None,
                       delivery=delivery, usage=budget.summary(), unresolved=issues)

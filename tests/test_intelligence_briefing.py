@@ -52,3 +52,5 @@ def test_crash_recovery_requires_explicit_retry(tmp_path):
 
 def test_empty_report():
     assert '暂无有充分证据' in render_html('2026-11-09', [])
+    report = render_html('2026-11-09', [], ['正文失败 <script>'])
+    assert '正文失败 &lt;script&gt;' in report

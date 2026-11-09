@@ -7,11 +7,13 @@ import time
 import pytz
 
 from .runtime import DailyRunner, load_settings
+from .locking import worker_lock
+from .briefing import BriefingService
 
 
 def main():
     parser = argparse.ArgumentParser(description='大模型行业情报 Agent')
-    parser.add_argument('command', choices=['daily', 'daemon', 'serve'])
+    parser.add_argument('command', choices=['daily', 'daemon', 'serve', 'retry'])
     parser.add_argument('--config', default='config/intelligence.yaml')
     parser.add_argument('--send', action='store_true', help='投递已保存简报到飞书')
     parser.add_argument('--retry-uncertain', action='store_true', help='明确重试可能已送达的简报')
@@ -21,7 +23,28 @@ def main():
         from .web import serve
         serve(config)
         return
+    with worker_lock(config['database']):
+        run_worker(config, args)
+
+
+def run_worker(config, args):
     runner = DailyRunner(config)
+    BriefingService(runner.store).recover_interrupted()
+    if args.command == 'retry':
+        import os
+        from .budget import Budget
+        from .runtime import feishu_sender
+        webhook = os.environ.get('FEISHU_WEBHOOK_URL')
+        if not webhook:
+            raise ValueError('未配置 FEISHU_WEBHOOK_URL')
+        budget = Budget(**config.get('daily_budget', {}))
+        with runner.store._connect() as db:
+            rows = db.execute("SELECT id FROM briefings WHERE delivery!='sent' ORDER BY id").fetchall()
+        service = BriefingService(runner.store)
+        for row in rows:
+            print(row[0], service.deliver(row[0], feishu_sender(webhook, budget),
+                                         retry_uncertain=args.retry_uncertain))
+        return
     if args.command == 'daily':
         print(json.dumps(runner.run(send=args.send, retry_uncertain=args.retry_uncertain), ensure_ascii=False))
         return

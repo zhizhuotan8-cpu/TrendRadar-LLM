@@ -10,7 +10,7 @@ DIMENSIONS = dict(model='模型选型', architecture='应用架构', productivit
                   cost='运行成本', reliability='可靠性')
 
 
-def render_html(day, items):
+def render_html(day, items, issues=()):
     sections = []
     for item in items:
         source, analysis = item['source'], item['analysis']
@@ -25,6 +25,7 @@ def render_html(day, items):
             f'<p>关注理由：{escape(analysis["reason"])}</p>',
             f'<p>情报分析：{escape(analysis["analysis"])}</p>',
             f'<p>发布时间：{escape(source["published_at"] or "未知")}；发现时间：{escape(source["first_seen_at"])}</p>',
+            f'<p>来源性质：{escape(source["source_kind"])}</p>',
             f'<a href="{escape(source["canonical_url"], quote=True)}">出处 #{source["id"]}</a>',
         ])
         if analysis['limited_information']:
@@ -32,14 +33,15 @@ def render_html(day, items):
         sections.append('<article>' + ''.join(lines) + '</article>')
     return ('<!doctype html><html lang="zh-CN"><meta charset="utf-8">'
             f'<title>大模型每日简报 {escape(day)}</title><h1>{escape(day)} 每日简报</h1>'
-            + (''.join(sections) or '<p>暂无有充分证据的新进展。</p>') + '</html>')
+            + (''.join(sections) or '<p>暂无有充分证据的新进展。</p>')
+            + '<h2>资料与运行限制</h2>' + ''.join(f'<p>{escape(s)}</p>' for s in issues) + '</html>')
 
 
 class BriefingService:
     def __init__(self, store):
         self.store = store
 
-    def prepare(self, now: datetime, limit: int = 10):
+    def prepare(self, now: datetime, limit: int = 10, issues=()):
         if now.tzinfo is None or now.utcoffset() is None:
             raise ValueError('Explicit timezone required')
         if not 1 <= limit <= 10:
@@ -58,6 +60,9 @@ class BriefingService:
                 AND NOT EXISTS (SELECT 1 FROM briefing_items i JOIN briefings b ON b.id=i.briefing_id
                     WHERE i.version_id=a.version_id)
                 ORDER BY a.id''').fetchall()
+            # Rank validated engineering value first; keep deterministic ordering on ties.
+            rows = sorted(rows, key=lambda row: (
+                -json.loads(row['payload']).get('importance', 3), -row['id']))
             items, seen = [], set()
             for row in rows:
                 if row['version_id'] in seen:
@@ -69,7 +74,7 @@ class BriefingService:
                 seen.add(row['version_id'])
                 if len(items) == limit:
                     break
-            html = render_html(day, items)
+            html = render_html(day, items, issues)
             key = db.execute('INSERT INTO briefings(day,payload,html) VALUES(?,?,?) RETURNING id',
                              (day, json.dumps(items, ensure_ascii=False), html)).fetchone()[0]
             for version in seen:

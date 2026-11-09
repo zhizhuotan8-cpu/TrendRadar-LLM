@@ -111,6 +111,7 @@ def send_to_feishu(
     ai_analysis: Any = None,
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
+    timeout_provider: Callable = None,
 ) -> bool:
     """
     发送到飞书（支持分批发送，支持热榜+RSS合并+独立展示区）
@@ -197,7 +198,8 @@ def send_to_feishu(
 
         try:
             response = requests.post(
-                webhook_url, headers=headers, json=payload, proxies=proxies, timeout=30
+                webhook_url, headers=headers, json=payload, proxies=proxies,
+                timeout=timeout_provider() if timeout_provider else 30
             )
             if response.status_code == 200:
                 result = response.json()
