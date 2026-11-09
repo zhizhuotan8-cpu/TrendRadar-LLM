@@ -45,7 +45,7 @@ class IntelligenceStore:
     """Explicit-path SQLite store; refuses unrelated or newer databases."""
 
     APPLICATION_ID = 0x54524941
-    VERSION = 3
+    VERSION = 4
 
     def __init__(self, path: str | Path):
         self.path = Path(path)
@@ -95,6 +95,17 @@ class IntelligenceStore:
                     version_id INTEGER REFERENCES event_versions(id),
                     payload TEXT NOT NULL)""")
                 db.execute("PRAGMA user_version=3")
+            if version < 4:
+                db.execute("""CREATE TABLE briefings (
+                    id INTEGER PRIMARY KEY, day TEXT NOT NULL UNIQUE,
+                    payload TEXT NOT NULL, html TEXT NOT NULL,
+                    delivery TEXT NOT NULL DEFAULT 'pending'
+                    CHECK(delivery IN ('pending','sending','uncertain','sent')))""")
+                db.execute("""CREATE TABLE briefing_items (
+                    briefing_id INTEGER NOT NULL REFERENCES briefings(id),
+                    version_id INTEGER NOT NULL REFERENCES event_versions(id),
+                    PRIMARY KEY(briefing_id, version_id))""")
+                db.execute("PRAGMA user_version=4")
 
     def _connect(self):
         # Connection context managers commit/rollback, but do not close connections.
