@@ -11,7 +11,7 @@ import requests
 import yaml
 
 from .collection import collect
-from .analysis import AnalysisService
+from .analysis import AnalysisService, AnalysisOutputError
 from .article_reader import ArticleReader
 from .briefing import BriefingService
 from .budget import Budget, BudgetExceeded, BudgetedClient, BudgetedReader
@@ -104,6 +104,8 @@ class DailyRunner:
                             issues.append(f'出处 #{key} 事件关联置信度不足，暂不入选')
                 except BudgetExceeded:
                     raise
+                except AnalysisOutputError as error:
+                    issues.append(f'出处 #{key} 模型输出校验失败：{error}')
                 except Exception:
                     issues.append('条目处理失败：来源或结构化证据无效')
         except BudgetExceeded as error:

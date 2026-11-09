@@ -15,7 +15,14 @@ change_key 标识实质变化；重复报道沿用已有 key，新的工程变�
 候选事件仅供参考，不能为了合并而忽略版本或发布对象差异。
 区分原始事实、作者经验及你的分析。confidence 表示事件关联置信度。
 另提供 importance 整数 1–5，按工程影响强度排序；5 为需立即评估的重大改变，1 为低影响信息。
+输出必须简短完整：facts 最多 3 项，experience 最多 1 项；每条 text 不超过 80 字，
+quote 选择正文中连续的短句（最多 200 字符），不能改写、翻译或用省略号拼接。
+analysis 不超过 200 字，reason 不超过 80 字；不输出 Markdown 围栏或其他说明。
 """
+
+
+class AnalysisOutputError(ValueError):
+    """Safe diagnostic code; never includes provider output or credentials."""
 
 
 class AnalysisService:
@@ -38,16 +45,30 @@ class AnalysisService:
         source = self.store.get_source(read['source_id'])
         # Bound input as well as output; evidence validation uses only the supplied excerpt.
         content = read['content'][:24000]
-        response = self.client.chat([
+        messages = [
             {'role': 'system', 'content': SYSTEM},
             {'role': 'user', 'content': json.dumps({
                 'source_id': source['id'], 'read_id': read_id,
                 'published_at': source['published_at'], 'title': source['title'],
                 'content': content, 'candidates': candidates,
             }, ensure_ascii=False)},
-        ], timeout=timeout, max_tokens=max_tokens, num_retries=0)
-        data = json.loads(response)
-        self._validate(data, content)
+        ]
+        for attempt in range(2):
+            # Each explicit attempt passes through BudgetedClient, including retries.
+            response = self.client.chat(messages, timeout=timeout, max_tokens=max_tokens, num_retries=0)
+            try:
+                data = json.loads(response)
+                self._validate(data, content)
+                break
+            except ValueError as error:
+                code = 'invalid_json' if isinstance(error, json.JSONDecodeError) else 'invalid_evidence_or_schema'
+                if attempt:
+                    raise AnalysisOutputError(code) from error
+                messages = [dict(messages[0]), messages[1]]
+                messages[0]['content'] += (
+                    '\n上次输出未通过 ' + code + ' 校验。重新根据原文输出完整简短 JSON；'
+                    'facts 只保留 1 条最重要的事实及其逐字短引文，experience 可为空，'
+                    'analysis 不超过 100 字。不得补全或猜测原文证据。')
         data.setdefault('importance', 3)
         data.update(source_id=source['id'], read_id=read_id,
                     limited_information=len(content) < len(read['content']))
