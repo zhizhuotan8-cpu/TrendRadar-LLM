@@ -45,7 +45,7 @@ class IntelligenceStore:
     """Explicit-path SQLite store; refuses unrelated or newer databases."""
 
     APPLICATION_ID = 0x54524941
-    VERSION = 4
+    VERSION = 5
 
     def __init__(self, path: str | Path):
         self.path = Path(path)
@@ -106,6 +106,12 @@ class IntelligenceStore:
                     version_id INTEGER NOT NULL REFERENCES event_versions(id),
                     PRIMARY KEY(briefing_id, version_id))""")
                 db.execute("PRAGMA user_version=4")
+            if version < 5:
+                db.execute('''CREATE TABLE chat_turns (
+                    id INTEGER PRIMARY KEY, session TEXT NOT NULL,
+                    question TEXT NOT NULL, answer TEXT NOT NULL)''')
+                db.execute('CREATE INDEX chat_session ON chat_turns(session,id)')
+                db.execute('PRAGMA user_version=5')
 
     def _connect(self):
         # Connection context managers commit/rollback, but do not close connections.

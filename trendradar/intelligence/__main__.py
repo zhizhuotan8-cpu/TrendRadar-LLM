@@ -11,12 +11,16 @@ from .runtime import DailyRunner, load_settings
 
 def main():
     parser = argparse.ArgumentParser(description='大模型行业情报 Agent')
-    parser.add_argument('command', choices=['daily', 'daemon'])
+    parser.add_argument('command', choices=['daily', 'daemon', 'serve'])
     parser.add_argument('--config', default='config/intelligence.yaml')
     parser.add_argument('--send', action='store_true', help='投递已保存简报到飞书')
     parser.add_argument('--retry-uncertain', action='store_true', help='明确重试可能已送达的简报')
     args = parser.parse_args()
     config = load_settings(args.config)
+    if args.command == 'serve':
+        from .web import serve
+        serve(config)
+        return
     runner = DailyRunner(config)
     if args.command == 'daily':
         print(json.dumps(runner.run(send=args.send, retry_uncertain=args.retry_uncertain), ensure_ascii=False))

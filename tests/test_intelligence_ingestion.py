@@ -54,6 +54,7 @@ def test_v1_migration_preserves_sources(tmp_path):
     key = IngestionService(store).ingest(NewsItem('Title', 'p', url='https://example.com'), NOW)
     before = store.get_source(key)
     with sqlite3.connect(path) as db:
+        db.execute('DROP TABLE chat_turns')
         db.execute('DROP TABLE briefing_items')
         db.execute('DROP TABLE briefings')
         db.execute('DROP TABLE analyses')
