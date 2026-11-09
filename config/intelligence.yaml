@@ -1,0 +1,33 @@
+# 独立领域配置；密钥仅通过环境变量提供。
+database: output/intelligence/domain.db
+reports: output/intelligence/reports
+port: 8765
+feeds:
+  - id: openai
+    name: OpenAI
+    url: https://openai.com/news/rss.xml
+    source_kind: official
+  - id: huggingface
+    name: Hugging Face
+    url: https://huggingface.co/blog/feed.xml
+    source_kind: official
+  - id: arxiv-ai
+    name: arXiv AI
+    url: https://rss.arxiv.org/rss/cs.AI
+    source_kind: community
+max_feed_items: 8
+daily_budget:
+  model_calls: 12
+  output_tokens: 24000
+  bodies: 20
+  searches: 0
+  requests: 10
+  seconds: 300
+chat_budget:
+  model_calls: 1
+  output_tokens: 2000
+  bodies: 4
+  searches: 1
+  requests: 4
+  seconds: 90
+# 以下上限是初始保守配置，不是实际计费金额承诺。
