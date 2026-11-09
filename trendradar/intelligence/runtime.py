@@ -27,6 +27,8 @@ def load_settings(path):
 
 
 def model_client():
+    # Price-map refresh is unrelated to answering and must not bypass run budgets.
+    os.environ.setdefault('LITELLM_LOCAL_MODEL_COST_MAP', 'True')
     from trendradar.ai.client import AIClient
     client = AIClient(dict(MODEL=os.environ.get('AI_MODEL', 'deepseek/deepseek-chat'),
                            API_KEY=os.environ.get('AI_API_KEY', ''),
