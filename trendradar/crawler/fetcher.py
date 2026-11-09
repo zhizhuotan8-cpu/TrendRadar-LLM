@@ -89,6 +89,7 @@ class DataFetcher:
         max_retries: int = 2,
         min_retry_wait: int = 3,
         max_retry_wait: int = 5,
+        timeout: float = 10,
     ) -> Tuple[Optional[str], str, str]:
         """
         获取指定ID数据，支持重试
@@ -121,7 +122,7 @@ class DataFetcher:
                     url,
                     proxies=proxies,
                     headers=self.DEFAULT_HEADERS,
-                    timeout=10,
+                    timeout=timeout,
                 )
                 response.raise_for_status()
 

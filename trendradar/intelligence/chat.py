@@ -76,6 +76,8 @@ class ChatService:
             issues.append('联网搜索或原文读取不可用；仅使用已读取资料')
         claims = []
         if evidence:
+            issues.append('回答基于本次提供的正文节选；未覆盖整篇资料的全部细节')
+        if evidence:
             try:
                 client = BudgetedClient(self.client or model_client(), budget)
                 raw = client.chat([dict(role='system', content=PROMPT), dict(role='user', content=json.dumps(
@@ -86,7 +88,7 @@ class ChatService:
                     raise ValueError('Invalid answer')
                 for claim in data['claims']:
                     source = evidence.get(claim.get('read_id'))
-                    if (not source or type(claim.get('source_id')) is not int
+                    if (not source or type(claim.get('read_id')) is not int or type(claim.get('source_id')) is not int
                         or claim['source_id'] != source['source_id']
                         or claim.get('kind') not in {'fact', 'experience', 'analysis'}
                         or not isinstance(claim.get('text'), str) or not claim['text'].strip()

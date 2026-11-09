@@ -10,8 +10,7 @@ from pathlib import Path
 import requests
 import yaml
 
-from trendradar.crawler.rss.parser import RSSParser
-from trendradar.storage.base import RSSItem
+from .collection import collect
 from .analysis import AnalysisService
 from .article_reader import ArticleReader
 from .briefing import BriefingService
@@ -80,47 +79,33 @@ class DailyRunner:
         analysis = AnalysisService(self.store, BudgetedClient(client, budget))
         ingest = IngestionService(self.store, BudgetedReader(
             self.reader or ArticleReader(jina_api_key=os.environ.get('JINA_API_KEY')), budget))
-        parser = RSSParser()
         processed = set()
-        for feed in self.config.get('feeds', []):
-            try:
-                response = self.get(feed['url'], timeout=budget.reserve(requests=1))
-                response.raise_for_status()
-                entries = parser.parse(response.text, feed['url'])
-            except BudgetExceeded as error:
-                issues.append(str(error))
-                break
-            except Exception:
-                issues.append(f"来源 {feed['id']} 采集失败")
-                continue
-            for entry in entries[:self.config.get('max_feed_items', 8)]:
+        try:
+            for item, kind in collect(self.config, budget, self.get, issues):
                 try:
-                    item = RSSItem(entry.title, feed['id'], url=entry.url,
-                                   published_at=entry.published_at or '', summary=entry.summary or '')
-                    key = ingest.ingest(item, now, feed.get('source_kind', 'unknown'))
+                    key = ingest.ingest(item, now, kind)
                     if key in processed:
                         continue
                     processed.add(key)
                     read_id = ingest.read(key, timeout=budget.reserve())
-                    reads = self.store.get_reads(key)
-                    latest = next(r for r in reads if r['id'] == read_id)
+                    latest = next(r for r in self.store.get_reads(key) if r['id'] == read_id)
                     if latest['status'] != 'read':
                         issues.append(f'出处 #{key} 正文读取失败，仅保留摘要')
                         continue
-                    # Exact body reuse saves calls, without treating a hash as an event update.
                     with self.store._connect() as db:
-                        previous = db.execute('''SELECT a.id FROM analyses a JOIN article_reads r
-                            ON r.id=a.read_id WHERE r.source_id=? AND r.content=? LIMIT 1''',
+                        previous = db.execute("""SELECT a.id FROM analyses a JOIN article_reads r
+                            ON r.id=a.read_id WHERE r.source_id=? AND r.content=? LIMIT 1""",
                                               (key, latest['content'])).fetchone()
                     if previous is None:
-                        analysis.analyze(read_id)
-                except BudgetExceeded as error:
-                    issues.append(str(error))
-                    break
+                        result = analysis.analyze(read_id)
+                        if result['needs_review']:
+                            issues.append(f'出处 #{key} 事件关联置信度不足，暂不入选')
+                except BudgetExceeded:
+                    raise
                 except Exception:
                     issues.append('条目处理失败：来源或结构化证据无效')
-            if budget.deadline <= budget.clock():
-                break
+        except BudgetExceeded as error:
+            issues.append(str(error))
         briefings = BriefingService(self.store)
         report = briefings.prepare(now, issues=issues)
         if report:

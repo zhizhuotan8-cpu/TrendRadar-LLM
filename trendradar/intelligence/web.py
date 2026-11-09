@@ -49,6 +49,10 @@ def make_server(config, chat=None):
     token = secrets.token_urlsafe(32)
 
     class Handler(BaseHTTPRequestHandler):
+        def setup(self):
+            super().setup()
+            self.connection.settimeout(10)
+
         def log_message(self, *args):
             pass
 

@@ -16,6 +16,7 @@ feeds:
     url: https://rss.arxiv.org/rss/cs.AI
     source_kind: community
 max_feed_items: 8
+hotlists: []  # 可配置 NewsNow 平台；综合热榜默认关闭。
 daily_budget:
   model_calls: 12
   output_tokens: 24000
