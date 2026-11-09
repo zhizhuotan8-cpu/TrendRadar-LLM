@@ -15,7 +15,15 @@ feeds:
     name: arXiv AI
     url: https://rss.arxiv.org/rss/cs.AI
     source_kind: community
-max_feed_items: 8
+  - id: simon-willison
+    name: Simon Willison
+    url: https://simonwillison.net/atom/everything/
+    source_kind: personal
+  - id: ruanyifeng
+    name: 阮一峰的网络日志
+    url: https://www.ruanyifeng.com/blog/atom.xml
+    source_kind: personal
+max_feed_items: 2
 hotlists: []  # 可配置 NewsNow 平台；综合热榜默认关闭。
 daily_budget:
   model_calls: 12
