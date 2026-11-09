@@ -86,7 +86,15 @@ class ArticleReader:
 
             if timeout <= 0:
                 raise InvalidParameterError("timeout must be positive")
+            started = time.monotonic()
+            # Include rate-limit waiting in the caller's remaining timeout.
+            wait = max(0, BATCH_INTERVAL - (time.time() - self._last_request_time))
+            if wait >= timeout:
+                raise requests.Timeout()
             self._throttle()
+            timeout -= time.monotonic() - started
+            if timeout <= 0:
+                raise requests.Timeout()
 
             response = requests.get(
                 f"{JINA_READER_BASE}/{url}",
